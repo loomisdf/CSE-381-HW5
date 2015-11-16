@@ -7,12 +7,12 @@ OS Eercises - Homework 5 - HOST dispatcher - Dispatcher Shell
         hostd is fcfs 'dispatcher' that reads in a list of 'jobs' from a file
         and 'dispatches' them in a first-come-first-served manner.
 
-        time resolution is one second (although this can be changed). 
+        time resolution is one second (although this can be changed).
 
     usage
-   
+
         hostd <dispatch file>
- 
+
         where
             <dispatch file> is list of process parameters as specified in fcfs.txt.
 
@@ -44,9 +44,9 @@ OS Eercises - Homework 5 - HOST dispatcher - Dispatcher Shell
 #define VERSION "1.0"
 
 /******************************************************
- 
+
    internal functions
-   
+
  ******************************************************/
 
 char * StripPath(char*);
@@ -61,12 +61,6 @@ void ErrMsg(char *, char *);
 
 int main (int argc, char *argv[])
 {
-    char * inputfile;             // job dispatch file
-    FILE * inputliststream;
-    PcbPtr inputqueue = NULL;     // input queue buffer
-    PcbPtr currentprocess = NULL; // current process
-    PcbPtr process = NULL;        // working pcb pointer
-    int timer = 0;                // dispatcher timer 
 
 //  0. Parse command line
 
@@ -74,10 +68,14 @@ int main (int argc, char *argv[])
     else PrintUsage (stderr, argv[0]);
 
 //  1. Initialize dispatcher queue;
-//     (already initialised in assignments above)
-    
+    char * inputfile;             // job dispatch file
+    FILE * inputliststream;
+    PcbPtr inputqueue = NULL;     // input queue buffer
+    PcbPtr currentprocess = NULL; // current process
+    PcbPtr process = NULL;        // working pcb pointer
+
 //  2. Fill dispatcher queue from dispatch list file;
-    
+
     if (!(inputliststream = fopen(inputfile, "r"))) { // open it
           SysErrMsg("could not open dispatch list file:", inputfile);
           exit(2);
@@ -98,61 +96,61 @@ int main (int argc, char *argv[])
     }
 
 //  3. Start dispatcher timer;
-//     (already set to zero above)
-        
+    int timer = 0;                // dispatcher timer
+
 //  4. While there's anything in the queue or there is a currently running process:
 
-   
+
 
 //      i. If a process is currently running;
 
-        
+
 
 //          a. Decrement process remainingcputime;
 
-        
-            
+
+
 //          b. If times up:
 
-          
-                
+
+
 //             A. Send SIGINT to the process to terminate it;
 
-               
-                
+
+
 //             B. Free up process structure memory
 
-          
-          
-        
+
+
+
 //     ii. If no process now currently running &&
 //           dispatcher queue is not empty &&
 //           arrivaltime of process at head of queue is <= dispatcher timer:
 
-    
+
 
 //          a. Dequeue process and start it (fork & exec)
 //          b. Set it as currently running process;
-            
-        
-        
+
+
+
 
 //     iii. sleep for one second;
 
-       
-            
+
+
 //      iv. Increment dispatcher timer;
 
-       
-            
+
+
 //       v. Go back to 4.
 
-   
-        
+
+
 //    5. Exit
 
     exit (0);
-}    
+}
 
 
 /*******************************************************************
@@ -191,7 +189,7 @@ char * StripPath(char * pathname)
 void PrintUsage(FILE * stream, char * progname)
 {
     if(!(progname = StripPath(progname))) progname = DEFAULT_NAME;
-    
+
     fprintf(stream,"\n"
 "%s process dispatcher (version " VERSION "); usage:\n\n"
 "  %s <dispatch file>\n"
@@ -227,4 +225,4 @@ void SysErrMsg(char * msg1, char * msg2)
     perror(NULL);
     return;
 }
-                                          
+
