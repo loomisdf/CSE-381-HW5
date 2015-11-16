@@ -99,39 +99,35 @@ int main (int argc, char *argv[])
     int timer = 0;                // dispatcher timer
 
 //  4. While there's anything in the queue or there is a currently running process:
-
-
+	while(currentprocess = inputqueue->startPcb && process != NULL) {
 
 //      i. If a process is currently running;
-
-
+		if(currentprocess) {
 
 //          a. Decrement process remainingcputime;
-
-
+			currentprocess->remainingcputime -= 1; // timequantum
 
 //          b. If times up:
+			if(currentprocess->remainingcputime == 0) {
+
+//              A. Send SIGINT to the process to terminate it;
+				currentprocess = terminatePcb(process);
 
 
-
-//             A. Send SIGINT to the process to terminate it;
-
-
-
-//             B. Free up process structure memory
-
-
-
+//              B. Free up process structure memory
+				free(currentprocess);
+			}
+		}
 
 //     ii. If no process now currently running &&
 //           dispatcher queue is not empty &&
 //           arrivaltime of process at head of queue is <= dispatcher timer:
-
+		else if( ) {
 
 
 //          a. Dequeue process and start it (fork & exec)
 //          b. Set it as currently running process;
-
+		}
 
 
 
@@ -144,6 +140,7 @@ int main (int argc, char *argv[])
 
 
 //       v. Go back to 4.
+	}
 
 
 
