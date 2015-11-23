@@ -1,7 +1,7 @@
 /*******************************************************************
 
   OS Eercises - Homework 5 - HOST dispatcher
- 
+
   pcb - process control block functions for HOST dispatcher
 
    PcbPtr startPcb(PcbPtr process) - start (or restart) a process
@@ -27,7 +27,7 @@
    void printPcbHdr(FILE *) - print header for printPcb
     returns:
       void
-      
+
    PcbPtr createnullPcb(void) - create inactive Pcb.
     returns:
       PcbPtr of newly initialised Pcb
@@ -35,7 +35,7 @@
 
    PcbPtr enqPcb (PcbPtr headofQ, PcbPtr process)
       - queue process (or join queues) at end of queue
-      - enqueues at "tail" of queue. 
+      - enqueues at "tail" of queue.
     returns head of queue
 
    PcbPtr deqPcb (PcbPtr * headofQ);
@@ -56,30 +56,30 @@
  *    PcbPtr of process
  *    NULL if start (restart) failed
  ******************************************************/
-PcbPtr startPcb (PcbPtr p) 
-{ 
+PcbPtr startPcb (PcbPtr p)
+{
     if (p->pid == 0) {                 // not yet started
         switch (p->pid = fork ()) {    //  so start it
-            case -1: 
+            case -1:
                 perror ("startPcb");
-                exit(1); 
-            case 0:                             // child 
+                exit(1);
+            case 0:                             // child
                 p->pid = getpid();
                 p->status = PCB_RUNNING;
                 printPcbHdr(stdout);            // printout in child to
                 printPcb(p, stdout);            //  sync with o/p
                 fflush(stdout);
-                execvp (p->args[0], p->args); 
+                execvp (p->args[0], p->args);
                 perror (p->args[0]);
                 exit (2);
-        }                                       // parent         
+        }                                       // parent
 
     } else { // already started & suspended so continue
         kill (p->pid, SIGCONT);
-    }    
+    }
     p->status = PCB_RUNNING;
-    return p; 
-} 
+    return p;
+}
 
 /*******************************************************
  * PcbPtr suspendPcb(PcbPtr process) - suspend
@@ -91,13 +91,13 @@ PcbPtr startPcb (PcbPtr p)
  PcbPtr suspendPcb(PcbPtr p)
  {
      int status;
-     
+
      kill(p->pid, SIGTSTP);
      waitpid(p->pid, &status, WUNTRACED);
      p->status = PCB_SUSPENDED;
      return p;
  }
- 
+
 /*******************************************************
  * PcbPtr terminatePcb(PcbPtr process) - terminate
  *    a process
@@ -108,12 +108,12 @@ PcbPtr startPcb (PcbPtr p)
 PcbPtr terminatePcb(PcbPtr p)
 {
     int status;
-    
+
     kill(p->pid, SIGINT);
     waitpid(p->pid, &status, WUNTRACED);
     p->status = PCB_TERMINATED;
     return p;
-}  
+}
 
 /*******************************************************
  * PcbPtr printPcb(PcbPtr process, FILE * iostream)
@@ -121,7 +121,7 @@ PcbPtr terminatePcb(PcbPtr p)
  *  returns:
  *    PcbPtr of process
  ******************************************************/
- 
+
 PcbPtr printPcb(PcbPtr p, FILE * iostream)
 {
     fprintf(iostream, "%7d%7d%7d%7d  ",
@@ -152,23 +152,23 @@ PcbPtr printPcb(PcbPtr p, FILE * iostream)
             fprintf(iostream, "UNKNOWN");
     }
     fprintf(iostream,"\n");
-    
-    return p;     
+
+    return p;
 }
-   
+
 /*******************************************************
  * void printPcbHdr(FILE *) - print header for printPcb
  *  returns:
  *    void
- ******************************************************/  
- 
-void printPcbHdr(FILE * iostream) 
-{  
+ ******************************************************/
+
+void printPcbHdr(FILE * iostream)
+{
 //    fprintf(iostream,"    pid arrive  prior    cpu offset Mbytes     prn    scn   modem   cd  status\n");
     fprintf(iostream,"    pid arrive  prior    cpu  status\n");
 
 }
-       
+
 /*******************************************************
  * PcbPtr createnullPcb() - create inactive Pcb.
  *
@@ -176,11 +176,11 @@ void printPcbHdr(FILE * iostream)
  *    PcbPtr of newly initialised Pcb
  *    NULL if malloc failed
  ******************************************************/
- 
+
 PcbPtr createnullPcb()
 {
     PcbPtr newprocessPtr;
-      
+
     if ((newprocessPtr = (PcbPtr) malloc (sizeof(Pcb)))) {
         newprocessPtr->pid = 0;
         newprocessPtr->args[0] = DEFAULT_PROCESS;
@@ -200,20 +200,20 @@ PcbPtr createnullPcb()
     }
     perror("allocating memory for new process");
     return NULL;
-}   
+}
 
 /*******************************************************
  * PcbPtr enqPcb (PcbPtr headofQ, PcbPtr process)
  *    - queue process (or join queues) at end of queue
- * 
+ *
  * returns head of queue
  ******************************************************/
- 
+
 PcbPtr enqPcb(PcbPtr q, PcbPtr p)
 {
     PcbPtr h = q;
-    
-    p->next = NULL; 
+
+    p->next = NULL;
     if (q) {
         while (q->next) q = q->next;
         q->next = p;
@@ -230,11 +230,11 @@ PcbPtr enqPcb(PcbPtr q, PcbPtr p)
  *    NULL if queue was empty
  *    & sets new head of Q pointer in adrs at 1st arg
  *******************************************************/
- 
+
 PcbPtr deqPcb(PcbPtr * hPtr)
 {
     PcbPtr p;
-     
+
     if (hPtr && (p = * hPtr)) {
         * hPtr = p->next;
         return p;

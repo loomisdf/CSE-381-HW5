@@ -62,17 +62,18 @@ void ErrMsg(char *, char *);
 int main (int argc, char *argv[])
 {
 
-//  0. Parse command line
-
-    if (argc == 2) inputfile = argv[1];
-    else PrintUsage (stderr, argv[0]);
-
 //  1. Initialize dispatcher queue;
     char * inputfile;             // job dispatch file
     FILE * inputliststream;
     PcbPtr inputqueue = NULL;     // input queue buffer
     PcbPtr currentprocess = NULL; // current process
     PcbPtr process = NULL;        // working pcb pointer
+
+//  0. Parse command line
+
+    if (argc == 2) inputfile = argv[1];
+    else PrintUsage (stderr, argv[0]);
+
 
 //  2. Fill dispatcher queue from dispatch list file;
 
@@ -99,45 +100,45 @@ int main (int argc, char *argv[])
     int timer = 0;                // dispatcher timer
 
 //  4. While there's anything in the queue or there is a currently running process:
-	while(currentprocess = inputqueue->startPcb && process != NULL) {
-
+	while(inputqueue || currentprocess) {
 //      i. If a process is currently running;
-		if(currentprocess) {
+		if(currentprocess != NULL && currentprocess->status == PCB_RUNNING) {
 
 //          a. Decrement process remainingcputime;
 			currentprocess->remainingcputime -= 1; // timequantum
 
 //          b. If times up:
-			if(currentprocess->remainingcputime == 0) {
+			if(currentprocess->remainingcputime <= 0) {
 
 //              A. Send SIGINT to the process to terminate it;
-				currentprocess = terminatePcb(process);
-
+				currentprocess = terminatePcb(currentprocess);
 
 //              B. Free up process structure memory
 				free(currentprocess);
+				currentprocess = NULL;
 			}
 		}
 
 //     ii. If no process now currently running &&
 //           dispatcher queue is not empty &&
 //           arrivaltime of process at head of queue is <= dispatcher timer:
-		else if( ) {
-
+		if(currentprocess == NULL && inputqueue && inputqueue->arrivaltime <= timer) {
 
 //          a. Dequeue process and start it (fork & exec)
 //          b. Set it as currently running process;
+            currentprocess = deqPcb(&inputqueue);
+          	currentprocess = startPcb(currentprocess);
 		}
 
 
 
 //     iii. sleep for one second;
 
-
+		sleep(1);
 
 //      iv. Increment dispatcher timer;
 
-
+		timer++;
 
 //       v. Go back to 4.
 	}
