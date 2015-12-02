@@ -2,16 +2,11 @@
 #define GHOST_H
 /*******************************************************************
 
-  OS Exercises - Project 2 - HOST dispatcher
- 
+  OS Exercises - Homework 5 - HOST dispatcher
+
    include file for HOST dispatcher
 
- *******************************************************************
-
-version: 1.0 (exercise 7 & 8)
-date:    December 2003
-author:  Dr Ian G Graham, ian.graham@griffith.edu.au 
- ******************************************************************/
+ *******************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>

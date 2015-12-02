@@ -1,6 +1,6 @@
 /*******************************************************************
 
-  OS Eercises - Project 2 - HOST dispatcher
+  OS Eercises - Homework 5 - HOST dispatcher
  
   pcb - process control block functions for HOST dispatcher
 
@@ -45,13 +45,7 @@
       NULL if queue was empty
       & sets new head of Q pointer in adrs at 1st arg
 
- ********************************************************************
-
-   version: 1.0 (exercise 7 & 8)
-   date:    December 2003
-   author:  Dr Ian G Graham, ian.graham@griffith.edu.au
-
- *******************************************************************/
+ ********************************************************************/
 
 #include "pcb.h"
 

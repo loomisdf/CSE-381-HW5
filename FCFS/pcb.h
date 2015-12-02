@@ -2,7 +2,7 @@
 #define PCB_H
 /*******************************************************************
 
-  OS Eercises - Project 2 - HOST dispatcher
+  OS Eercises - Homework 5 - HOST dispatcher
 
   pcb - process control block functions for HOST dispatcher
 
@@ -17,13 +17,7 @@
 
   see pcb.c for fuller description of function arguments and returns
 
- ********************************************************************
-
-  version: 1.0 (exercise 7 & 8)
-  date:    December 2003
-  author:  Dr Ian G Graham, ian.graham@griffith.edu.au
-
- *******************************************************************/
+ ********************************************************************/
 
 
 //#include "mab.h"
@@ -33,7 +27,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/types.h>
-#include <unistd.h> 
+#include <unistd.h>
 
 #ifndef FALSE
 #define FALSE 0
@@ -61,6 +55,8 @@
 #define PCB_SUSPENDED 4
 #define PCB_TERMINATED 5
 
+#define N_FB_QUEUES (LOW_PRIORITY - HIGH_PRIORITY + 1)
+
 struct rsrc {
     int printers;
     int scanners;
@@ -82,7 +78,7 @@ struct pcb {
     Rsrc req;
     int status;
     struct pcb * next;
-}; 
+};
 
 typedef struct pcb Pcb;
 typedef Pcb * PcbPtr;

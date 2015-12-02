@@ -1,11 +1,11 @@
 /*******************************************************************
 
-OS Eercises - Homework 5 - HOST dispatcher - Round Robin Dispatcher
- 
+OS Eercises - Homework 5 - HOST dispatcher - Dispatcher Shell
+
     hostd
 
-        hostd is a round-robin 'dispatcher' that reads in a list of 'jobs'
-        from a file and 'dispatches' them in round-robin mode (see below).
+        hostd is fcfs 'dispatcher' that reads in a list of 'jobs' from a file
+        and 'dispatches' them in a first-come-first-served manner.
 
         time resolution is one second (although this can be changed).
 
@@ -14,46 +14,35 @@ OS Eercises - Homework 5 - HOST dispatcher - Round Robin Dispatcher
         hostd <dispatch file>
 
         where
-            <dispatch file> is list of process parameters as specified
-                for assignment 2.
+            <dispatch file> is list of process parameters as specified in fcfs.txt.
 
     functionality
 
     1. Initialize dispatcher queue;
     2. Fill dispatcher queue from dispatch list file;
     3. Start dispatcher timer;
-    4. While there's anything in any of the queues or there is a currently running process:
-        i. Unload any pending processes from the input queue:
-           While (head-of-input-queue.arrival-time <= dispatcher timer)
-           dequeue process from input queue and enqueue on RR queue;
-       ii. If a process is currently running:
+    4. While there's anything in the queue or there is a currently running process:
+        i. If a process is currently running;
             a. Decrement process remainingcputime;
             b. If times up:
                 A. Send SIGINT to the process to terminate it;
-                B. Free up process structure memory;
-            c. else if other processes are waiting in RR queue:
-                A. Send SIGTSTP to suspend it;
-                B. Enqueue it back on RR queue;
-      iii. If no process currently running && RR queue is not empty:
-            a. Dequeue process from RR queue
-            b. If already started but suspended, restart it (send SIGCONT to it)
-               else start it (fork & exec)
-            c. Set it as currently running process;
-       iv. sleep for one second;
-        v. Increment dispatcher timer;
-       vi. Go back to 4.
+                B. Free up process structure memory
+       ii. If no process currently running &&
+            dispatcher queue is not empty &&
+            arrivaltime of process at head of queue is <= dispatcher timer:
+            a. Dequeue process and start it (fork & exec)
+            b. Set it as currently running process;
+      iii. sleep for one second;
+       iv. Increment dispatcher timer;
+        v. Go back to 4.
     5. Exit
 
-********************************************************************
-
-history:
-   v1.0: Original simple FCFS dispatcher
-   v1.1: Simple round-robin dispatcher
-*******************************************************************/
+********************************************************************/
 
 #include "hostd.h"
 
-#define VERSION "1.1"
+#define VERSION "1.0"
+
 /******************************************************
 
    internal functions
@@ -72,22 +61,19 @@ void ErrMsg(char *, char *);
 
 int main (int argc, char *argv[])
 {
+
+//  1. Initialize dispatcher queue;
     char * inputfile;             // job dispatch file
     FILE * inputliststream;
     PcbPtr inputqueue = NULL;     // input queue buffer
-    PcbPtr rrqueue = NULL;        // round-robin queue
     PcbPtr currentprocess = NULL; // current process
     PcbPtr process = NULL;        // working pcb pointer
-    int timer = 0;                // dispatcher timer
-    int quantum = QUANTUM;        // current time-slice quantum
 
 //  0. Parse command line
 
     if (argc == 2) inputfile = argv[1];
     else PrintUsage (stderr, argv[0]);
 
-//  1. Initialize dispatcher queue;
-//     (already initialised in assignments above)
 
 //  2. Fill dispatcher queue from dispatch list file;
 
@@ -111,25 +97,19 @@ int main (int argc, char *argv[])
     }
 
 //  3. Start dispatcher timer;
-//     (already set to zero above)
+    int timer = 0;                // dispatcher timer
 
-//  4. While there's anything in any of the queues or there is a currently running process:
-	while(inputqueue || rrqueue || currentprocess) {
-//      i. Unload any pending processes from the input queue:
-//         While (head-of-input-queue.arrival-time <= dispatcher timer)
-//         dequeue process from input queue and enqueue on RR queue;
-		while(inputqueue && inputqueue->arrivaltime <= timer) {
-			process = deqPcb(&inputqueue);
-			process->status = PCB_READY;
-			rrqueue = enqPcb(rrqueue, process);
-		}
-//      ii. If a process is currently running;
-		if(currentprocess && currentprocess->status == PCB_RUNNING) {
+//  4. While there's anything in the queue or there is a currently running process:
+	while(inputqueue || currentprocess) {
+//      i. If a process is currently running;
+		if(currentprocess != NULL && currentprocess->status == PCB_RUNNING) {
+
 //          a. Decrement process remainingcputime;
-			currentprocess->remainingcputime -= quantum;
+			currentprocess->remainingcputime -= 1; // timequantum
 
 //          b. If times up:
 			if(currentprocess->remainingcputime <= 0) {
+
 //              A. Send SIGINT to the process to terminate it;
 				currentprocess = terminatePcb(currentprocess);
 
@@ -137,53 +117,32 @@ int main (int argc, char *argv[])
 				free(currentprocess);
 				currentprocess = NULL;
 			}
+		}
 
-//          c. else if other processes are waiting in RR queue:
-			else if(rrqueue) {
+//     ii. If no process now currently running &&
+//           dispatcher queue is not empty &&
+//           arrivaltime of process at head of queue is <= dispatcher timer:
+		if(currentprocess == NULL && inputqueue && inputqueue->arrivaltime <= timer) {
 
-
-//              A. Send SIGTSTP to suspend it;
-				currentprocess = suspendPcb(currentprocess);
-
-//              B. Enqueue it back on RR queue;
-				enqPcb(currentprocess, rrqueue);
-			}
+//          a. Dequeue process and start it (fork & exec)
+//          b. Set it as currently running process;
+            currentprocess = deqPcb(&inputqueue);
+          	currentprocess = startPcb(currentprocess);
 		}
 
 
 
-//    iii. If no process currently running && RR queue is not empty:
-		if(!currentprocess && rrqueue) {
-//          a. Dequeue process from RR queue
-			currentprocess = deqPcb(&rrqueue);
+//     iii. sleep for one second;
 
-//          b. If already started but suspended, restart it (send SIGCONT to it)
-			if(currentprocess->status == PCB_SUSPENDED) {
-				currentprocess = startPcb(currentprocess);
-		    }
-//          else start it (fork & exec)
-			else {
-				currentprocess = deqPcb(&rrqueue);
-			}
+		sleep(1);
 
-//          c. Set it as currently running process;
-			currentprocess = startPcb(currentprocess);
-		}
+//      iv. Increment dispatcher timer;
 
-
-
-//      iv. sleep for quantum;
-
-		sleep(quantum);
-
-
-
-//      v. Increment dispatcher timer;
 		timer++;
 
-
-//      vi. Go back to 4.
+//       v. Go back to 4.
 	}
+
 
 
 //    5. Exit

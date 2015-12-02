@@ -1,7 +1,7 @@
-# makefile for OS Exercises: exercise 8
+# makefile for OS Exercises: homework 5
 #
-#  author:  Dr Ian G Graham - Ian.Graham@griffith.edu.au
-#  date:    December 2003
+#  author:  Dr Hakam W. Alomari - alomarhw@miamioh.edu
+#  date:    Nov 2015
 #
 
 CC=gcc
