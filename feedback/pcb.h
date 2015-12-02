@@ -60,6 +60,7 @@
 #define PCB_RUNNING 3
 #define PCB_SUSPENDED 4
 #define PCB_TERMINATED 5
+#define N_FB_QUEUES        (LOW_PRIORITY - HIGH_PRIORITY +1)
 
 struct rsrc {
     int printers;
