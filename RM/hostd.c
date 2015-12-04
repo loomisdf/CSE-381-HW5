@@ -1,24 +1,29 @@
 /*******************************************************************
 
-OS Eercises - Homework 5 - HOST dispatcher - Exercise Memory Allocation
+OS Eercises - Homework 5 - HOST dispatcher - Exercise Resource Management and project final
 
     hostd
 
-        hostd is a three level feedback 'dispatcher' that reads in a list
-        of 'jobs' from a file and 'dispatches' them in feedback mode
-        (see below).
+        hostd is a four level 'dispatcher' with a Real-Time job queue that
+        is dispatched on a first-come-first-served basis and a three level
+        feedback dispatcher that deals with the lower priority processes.
 
-        implements memory allocation as selected in command line.
+        The 'jobs' are read in from a 'dispatch file' specified on the
+        command line and the jobs are simulatred by executing the 'process'
+        program provided.
+
+        The dispatcher implements memory and i/o resource allocation.
 
         time resolution is one second (although this can be changed).
+
+        for more details of operarion see the specifications for the 5th  HW
 
     usage
 
         hostd [-mf|-mn|-mb|-mw] <dispatch file>
 
         where
-            <dispatch file> is list of process parameters as specified
-                for assignment 2.
+            <dispatch file> is list of process parameters.
             -mx is optional selection of memory allocation algorithm
                 -mf First Fit (default)
                 -mn Next Fit
@@ -27,55 +32,61 @@ OS Eercises - Homework 5 - HOST dispatcher - Exercise Memory Allocation
 
     functionality
 
-    1. Initialize dispatcher queue;
-    2. Fill dispatcher queue from dispatch list file;
-    3. Start dispatcher timer;
-    4. While there's anything in any of the queues or there is a currently running process:
+    1. Initialize  all dispatcher queues;
+    2. Initialise memory and resource allocation structures;
+    3. Fill dispatcher queue from dispatch list file;
+    4. Start dispatcher timer;
+    5. While there's anything in any of the queues or there is a currently running process:
         i. Unload any pending processes from the input queue:
            While (head-of-input-queue.arrival-time <= dispatcher timer)
-           dequeue process from input queue and enqueue on user job queue;
+           dequeue process from input queue and enqueue on either:
+            a. Real-time queue or
+            b. User job queue;
        ii. Unload pending processes from the user job queue:
            While (head-of-user-job-queue.mbytes can be allocated)
-           dequeue process from user job queue, allocate memory to the process and
-           enqueue on highest priority feedback queue (assigning it the appropriate
-           priority);
+            a. dequeue process from user job queue,
+            b. allocate memory to the process,
+            c. allocate i/o resources to the process, and
+            d. enqueue on appropriate priority feedback queue;
       iii. If a process is currently running:
             a. Decrement process remainingcputime;
             b. If times up:
                 A. Send SIGINT to the process to terminate it;
-                B. Free memory we have allocated to the process;
+                B. Free memory and i/o resources we have allocated to the process (user job only);
                 C. Free up process structure memory;
-            c. else if other processes are waiting in any of the feedback queues:
+            c. else if it is a user process and other processes are waiting in any of the queues:
                 A. Send SIGTSTP to suspend it;
                 B. Reduce the priority of the process (if possible) and enqueue it on
                    the appropriate feedback queue;
-       iv. If no process currently running && feedback queues are not empty:
-            a. Dequeue process from the highest priority feedback queue that is not empty
+       iv. If no process currently running && real time queue and feedback queues are not all empty:
+            a. Dequeue process from the highest priority queue that is not empty
             b. If already started but suspended, restart it (send SIGCONT to it)
                else start it (fork & exec)
             c. Set it as currently running process;
         v. sleep for one second;
        vi. Increment dispatcher timer;
-      vii. Go back to 4.
-    5. Exit
+      vii. Go back to 5.
+    6. Exit
 
 ********************************************************************
 
 history:
-   v1.0: Original simple FCFS dispatcher
-   v1.1: Simple round-robin dispatcher
+   v1.0: Original simple FCFS dispatcher 
+   v1.1: Simple round-robin dispatcher 
    v1.2: Simple three level feedback dispatcher add CheckQueues fn
-   v1.3: Add memory block allocation (this exercise)
+   v1.3: Add memory block allocation 
+   v1.4: Add resource allocation and merge real-time and feedback dispatcher operation 
+   (this exercise and project final)
 *******************************************************************/
 
 #include "hostd.h"
 
-#define VERSION "1.3"
+#define VERSION "1.4"
 
 /******************************************************
-
+ 
    internal functions
-
+   
  ******************************************************/
 
 int CheckQueues(PcbPtr *);
@@ -91,6 +102,7 @@ global variables
 ******************************************************/
 
 Mab  memory = { 0, MEMORY_SIZE, FALSE, NULL, NULL }; // memory arena
+Rsrc resources = { MAX_PRINTERS, MAX_SCANNERS, MAX_MODEMS, MAX_CDS };
 
 /******************************************************/
 
@@ -100,13 +112,15 @@ int main (int argc, char *argv[])
     FILE * inputliststream;
     PcbPtr inputqueue = NULL;     // input queue buffer
     PcbPtr userjobqueue = NULL;   // arrived processes
-    PcbPtr fbqueue[N_FB_QUEUES];  // feedback queues
+    PcbPtr dispatcherqueues[N_QUEUES];  // dispatcher queue array
+                  // [0] - real-time, [1]-[3] - feedback
     PcbPtr currentprocess = NULL; // current process
     PcbPtr process = NULL;        // working pcb pointer
+    MabPtr rtmemory = memAlloc(&memory, RT_MEMORY_SIZE); // fixed RT memory
     int timer = 0;                // dispatcher timer
     int quantum = QUANTUM;        // current time-slice quantum
     int i;                        // working index
-    MabPtr mabTree = memAlloc(&memory, MEMORY_SIZE);
+    RsrcPtr rPointer = rsrcAlloc(&resources, resources);
 //  0. Parse command line
 
     i = 0;
@@ -123,23 +137,29 @@ int main (int argc, char *argv[])
         if (!strcmp(argv[i],"-mw")) {
             MabAlgorithm = WORST_FIT;
         } else
+        if (!strcmp(argv[i],"-mnr")) {
+            memFree(rtmemory);            // dont preallocate RT memory
+            rtmemory = NULL;
+        } else                
         if (!inputfile) {
             inputfile = argv[i];
         } else {
              PrintUsage(stdout, argv[0]);
         }
     }
-    if (!inputfile) PrintUsage(stdout, argv[0]);
+    if (!inputfile) PrintUsage(stdout, argv[0]);    
 
 //  1. Initialize dispatcher queues (all others already initialised) ;
 
-    for (i = 0; i < N_FB_QUEUES; fbqueue[i++] = NULL);
+	    
 
+//  2. Initialise memory and resource allocation structures
+//     (already done)
 
-//  2. Fill dispatcher queue from dispatch list file;
-
-if (!(inputliststream = fopen(inputfile, "r"))) { // open it
-         SysErrMsg("could not open dispatch list file:", inputfile);
+//  3. Fill dispatcher queue from dispatch list file;
+    
+    if (!(inputliststream = fopen(inputfile, "r"))) { // open it
+           SysErrMsg("could not open dispatch list file:", inputfile);
            exit(2);
      }
 
@@ -157,129 +177,150 @@ if (!(inputliststream = fopen(inputfile, "r"))) { // open it
          inputqueue = enqPcb(inputqueue, process);
      }
 
-//  3. Start dispatcher timer;
+
+//  4. Start dispatcher timer;
 //     (already set to zero above)
+        
+//  5. While there's anything in any of the queues or there is a currently running process:
 
-//  4. While there's anything in any of the queues or there is a currently running process:
-       while(inputqueue || CheckQueues(fbqueue) >= 0  || currentprocess) {
+     while(inputqueue || CheckQueues(dispatcherqueues) >= 0  || userjobqueue || currentprocess) {
 
+    
 
 //      i. Unload any pending processes from the input queue:
 //         While (head-of-input-queue.arrival-time <= dispatcher timer)
-//         dequeue process from input queue and and enqueue on user
-//         job queue;
+//         dequeue process from input queue and and enqueue on either
 
-      while(inputqueue && inputqueue->arrivaltime <= timer) {
-          process = deqPcb(&inputqueue);
-          process->status = PCB_READY;
-          process->priority = 0;
-          userjobqueue = enqPcb(userjobqueue, process);
-      }
+	   while(inputqueue && inputqueue->arrivaltime <= timer) {
+     		
+		
 
+
+ // dequeue process
+		 process = deqPcb(&inputqueue);
+                 process->status = PCB_READY;
+ // set pcb ready
+
+//           a. Real-time queue so check out parameters before enqueueing               
+
+		 if(checkQueues(dispatcherqueues[0])) {
+			dispatcherqueues[0] = enqPcb(dispatcherQueues[0], process);	
+		}                
+//            b. user job queue - check out parameters before enqueueing
+		else if(userjobqueue) {
+			userjobqueue = enq(userjobqueue, process);
+		}	 
+//               c. unknown priority
+                else if(checkQueues(dispatchesqueues)) {
+			dispatcherqueues[process->priority] = enqPcb(dispatcherqueues[process->priority]);
+		}
+            }//end inner while
 
 //     ii. Unload pending processes from the user job queue:
-//         While (head-of-user-job-queue.mbytes can be allocated)
-//         dequeue process from user job queue, allocate memory to the process and
-//         enqueue on highest priority feedback queue (assigning it the appropriate
-//         priority);
+//         While (head-of-user-job-queue.mbytes && resources can be allocated
 
-	while(memChk(mabTree, MEMORY_SIZE)) {
+ 	while() {
+//           a. dequeue process from user job queue
 		process = deqPcb(&userjobqueue);
-		memAlloc(mabTree, MEMORY_SIZE);	
-          	fbqueue[process->priority] = enqPcb(fbqueue[process->priority], process);
-	}
-
+//           b. allocate memory to the process
+		memAlloc(rtmemory, RT_MEMORY_SIZE);
+//           c. allocate i/o resources to process
+		//DO NOT KNOW HOW TO DO THIS
+            										
+            										     // set pcb ready
+	process->status = PCB_READY;
+//           d. enqueue on appropriate feedback queue
+            fbqueue[process->priority] = enqPcb(fbqueue[process->priority], process);
+            
 
 //    iii. If a process is currently running;
-
-      if(currentprocess && currentprocess->status == PCB_RUNNING) {
-
+	if(currentprocess && currentprocess->status == PCB_RUNNING) {
+        
 
 //          a. Decrement process remainingcputime;
 
-          currentprocess->remainingcputime -= quantum;
-
+	currentprocess->remainingcputime -= quantum;            
+            
 //          b. If times up:
-
-          if(currentprocess->remainingcputime <= 0) {
-
+	if(currentprocess->remainingcputime <= 0) {
+                
 //             A. Send SIGINT to the process to terminate it;
 
-              currentprocess = terminatePcb(currentprocess);
+                currentprocess = terminatePcb(currentprocess);
 
-//             B. Free memory we have allocated to the process;
+//             B. Free memory and resources we have allocated to the process;
 
-		memFree(mabTree);
-
-
+                memFree(rtmemory);
 //             C. Free up process structure memory
-
-              free(currentprocess);
-              currentprocess = NULL;
-          }
-
-}
-
-//         c. else if other processes are waiting in feedback queues:
-          else if(CheckQueues(fbqueue) >= 0) {
-
-
+		free(currentprocess);
+		currentprocess = NULL;	
+                
+                }
+//         c. else if a user process and other processes are waiting in feedback queues:
+	
+            if(CheckQueues(dispatcherqueues) >= 0) {
+                
 //             A. Send SIGTSTP to suspend it;
 
-              suspendPcb(currentprocess);
+		suspendPcb(currentprocess);
 
 //             B. Reduce the priority of the process (if possible) and enqueue it on
 //                the appropriate feedback queue;;
+		if(++(currentprocess->priority) >= N_FB_QUEUES) {
+                         currentprocess->priority = N_FB_QUEUES - 1;
+                 }
+                 dispatcherqueues[currentprocess->priority] =
+                            enqPcb(dispatcherqueues[currentprocess->priority], currentprocess);
+                 currentprocess = NULL;
 
+                }
+         }
+                
+                
+                
+                
+        
+//     iv. If no process currently running &&  queues are not empty:
 
-	  }
-          if(++(currentprocess->priority) >= N_FB_QUEUES) {
-              currentprocess->priority = N_FB_QUEUES - 1;
-          }
-          fbqueue[currentprocess->priority] =
-              enqPcb(fbqueue[currentprocess->priority], currentprocess);
-          currentprocess = NULL;
-
-
-//     iv. If no process currently running && feedback queues are not empty:
-
-          if(!currentprocess && (i = CheckQueues(fbqueue)) >= 0) {
+	  if(!currentprocess && (i = CheckQueues(dispatcherqueues)) >= 0) {
+        
 
 //         a. Dequeue process from RR queue
 
-              currentprocess = deqPcb(&fbqueue[i]);
-
+            currentprocess = deqPcb(&dispatcherqueues[i]);
+            
 //         b. If already started but suspended, restart it (send SIGCONT to it)
 //              else start it (fork & exec)
 //         c. Set it as currently running process;
-
-              startPcb(currentprocess);
-          }
-
-
-
-
-
+            
+           }
+           
+           
+        
 //       v. sleep for quantum;
 
+        
+        quantum = (currentprocess && currentprocess->remainingcputime < QUANTUM) ?
+                  currentprocess->remainingcputime :
+                  !(currentprocess) ? 1 : QUANTUM;
+           sleep(quantum);
 
-          quantum = (currentprocess && currentprocess->remainingcputime < QUANTUM) ?
-                 currentprocess->remainingcputime :
-                 !(currentprocess) ? 1 : QUANTUM;
-          sleep(quantum);
 
+        
+        
+            
 //      vi. Increment dispatcher timer;
-          timer += quantum;
-
-
-//     vii. Go back to 4.
+	timer += quantum;
+        
+            
+//     vii. Go back to 5.
 
     }
-
-//    5. Exit
+        
+//    6. Exit
 
     exit (0);
-}
+}    
 
 
 /*******************************************************************
@@ -295,7 +336,7 @@ int CheckQueues(PcbPtr * queues)
 {
     int n;
 
-    for (n = 0; n < N_FB_QUEUES; n++)
+    for (n = 0; n < N_QUEUES; n++)
         if (queues[n]) return n;
     return -1;
 }
@@ -336,9 +377,9 @@ char * StripPath(char * pathname)
 void PrintUsage(FILE * stream, char * progname)
 {
     if(!(progname = StripPath(progname))) progname = DEFAULT_NAME;
-
+    
     fprintf(stream,"\n"
-"%s process dispatcher (version " VERSION "); usage:\n\n"
+"%s process dispatcher ( version " VERSION "); usage:\n\n"
 "  %s [-mf|-mn|-mb|-mw] <dispatch file>\n"
 " \n"
 "  where \n"
@@ -347,9 +388,9 @@ void PrintUsage(FILE * stream, char * progname)
 "      -mf First Fit (default) \n"
 "      -mn Next Fit \n"
 "      -mb Best Fit \n"
-"      -mw Worst Fit \n\n",
+"      -mw Worst Fit \n"
+"    -mnr don\'t preallocate real-time memory\n\n",
     progname,progname);
-
     exit(127);
 }
 /********************************************************
@@ -378,3 +419,4 @@ void SysErrMsg(char * msg1, char * msg2)
     perror(NULL);
     return;
 }
+                                          

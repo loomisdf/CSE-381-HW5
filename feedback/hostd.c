@@ -1,4 +1,4 @@
-/*******************************************************************
+ /*******************************************************************
 
 OS Eercises - Homework 5 - HOST dispatcher - Feedback Dispatcher
 
@@ -118,7 +118,7 @@ int main (int argc, char *argv[])
 //     (already set to zero above)
         
 //  4. While there's anything in any of the queues or there is a currently running process:
-	while(inputqueue || fbqueue || currentprocess) {
+	while(inputqueue || CheckQueues(fbqueue) >= 0  || currentprocess) {
 
 
 //      i. Unload any pending processes from the input queue:
@@ -129,7 +129,8 @@ int main (int argc, char *argv[])
 	while(inputqueue && inputqueue->arrivaltime <= timer) {
                         process = deqPcb(&inputqueue);
                         process->status = PCB_READY;
-                        fbqueue = enqPcb(fbqueue, process);
+			process->priority = 0;
+                        fbqueue[process->priority] = enqPcb(fbqueue[process->priority], process);
                 }       
        
 
@@ -157,18 +158,22 @@ int main (int argc, char *argv[])
                 
 //         c. else if other processes are waiting in feedback queues:
 
-          else if(fbqueue) {
+          else if(CheckQueues(fbqueue) >= 0) {
                 
 //             A. Send SIGTSTP to suspend it;
 
-                currentprocess = suspendPcb(currentprocess);
+                suspendPcb(currentprocess);
 
 //             B. Reduce the priority of the process (if possible) and enqueue it on
 //                the appropriate feedback queue;;
-
-                           enqPcb(currentprocess, fbqueue);
-                        }
-                }
+		if(++(currentprocess->priority) >= N_FB_QUEUES) {
+			currentprocess->priority = N_FB_QUEUES - 1;
+		}
+		fbqueue[currentprocess->priority] = 
+                           enqPcb(fbqueue[currentprocess->priority], currentprocess);
+		currentprocess = NULL;
+	  }
+	}
 
           
           
@@ -177,39 +182,36 @@ int main (int argc, char *argv[])
         
 //    iii. If no process currently running && feedback queues are not empty:
 
-		 if(!currentprocess && fbqueue) {
+		 if(!currentprocess && (i = CheckQueues(fbqueue)) >= 0) {
      
 
 //         a. Dequeue process from RR queue
 
-         		currentprocess = deqPcb(&fbqueue);
+         		currentprocess = deqPcb(&fbqueue[i]);
             
 //         b. If already started but suspended, restart it (send SIGCONT to it)
-                        if(currentprocess->status == PCB_SUSPENDED) {
-                                currentprocess = startPcb(currentprocess);
 //              else start it (fork & exec)
-			else {
-                                currentprocess = deqPcb(&fbqueue);
-                        }
 //         c. Set it as currently running process;
-                        currentprocess = startPcb(currentprocess);
+                        startPcb(currentprocess);
                 }
             
         
         
         
 //      iv. sleep for quantum;
-
+	quantum = (currentprocess && currentprocess->remainingcputime < QUANTUM) ? 
+		currentprocess->remainingcputime : 
+		!(currentprocess) ? 1 : QUANTUM;
 		sleep(quantum);      
        
             
 //       v. Increment dispatcher timer;
-		timer++;
+		timer+= quantum;
 
         
             
 //      vi. Go back to 4.
-	}//end big loop
+	}
     
         
 //    5. Exit
