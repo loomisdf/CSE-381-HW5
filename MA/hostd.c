@@ -106,7 +106,6 @@ int main (int argc, char *argv[])
     int timer = 0;                // dispatcher timer
     int quantum = QUANTUM;        // current time-slice quantum
     int i;                        // working index
-    MabPtr mabTree = memAlloc(&memory, MEMORY_SIZE);
 //  0. Parse command line
 
     i = 0;
@@ -161,7 +160,7 @@ if (!(inputliststream = fopen(inputfile, "r"))) { // open it
 //     (already set to zero above)
 
 //  4. While there's anything in any of the queues or there is a currently running process:
-       while(inputqueue || CheckQueues(fbqueue) >= 0  || currentprocess) {
+       while(inputqueue || userjobqueue || CheckQueues(fbqueue) >= 0  || currentprocess) {
 
 
 //      i. Unload any pending processes from the input queue:
@@ -183,16 +182,18 @@ if (!(inputliststream = fopen(inputfile, "r"))) { // open it
 //         enqueue on highest priority feedback queue (assigning it the appropriate
 //         priority);
 
-	while(memChk(mabTree, MEMORY_SIZE)) {
+	while(userjobqueue && memChk(&memory, userjobqueue->mbytes)) {
 		process = deqPcb(&userjobqueue);
-		memAlloc(mabTree, MEMORY_SIZE);	
+		process->memoryblock = memAlloc(&memory, process->mbytes);
+		process->status = PCB_READY;
+		process->priority = 0;	
           	fbqueue[process->priority] = enqPcb(fbqueue[process->priority], process);
 	}
 
 
 //    iii. If a process is currently running;
 
-      if(currentprocess && currentprocess->status == PCB_RUNNING) {
+      if(currentprocess) {
 
 
 //          a. Decrement process remainingcputime;
@@ -209,7 +210,7 @@ if (!(inputliststream = fopen(inputfile, "r"))) { // open it
 
 //             B. Free memory we have allocated to the process;
 
-		memFree(mabTree);
+		memFree(currentprocess->memoryblock);
 
 
 //             C. Free up process structure memory
@@ -218,7 +219,7 @@ if (!(inputliststream = fopen(inputfile, "r"))) { // open it
               currentprocess = NULL;
           }
 
-}
+
 
 //         c. else if other processes are waiting in feedback queues:
           else if(CheckQueues(fbqueue) >= 0) {
@@ -232,15 +233,15 @@ if (!(inputliststream = fopen(inputfile, "r"))) { // open it
 //                the appropriate feedback queue;;
 
 
-	  }
+	  
           if(++(currentprocess->priority) >= N_FB_QUEUES) {
               currentprocess->priority = N_FB_QUEUES - 1;
           }
           fbqueue[currentprocess->priority] =
               enqPcb(fbqueue[currentprocess->priority], currentprocess);
           currentprocess = NULL;
-
-
+	}
+}
 //     iv. If no process currently running && feedback queues are not empty:
 
           if(!currentprocess && (i = CheckQueues(fbqueue)) >= 0) {

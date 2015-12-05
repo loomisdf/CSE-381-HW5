@@ -1,4 +1,4 @@
-/*******************************************************************
+ /*******************************************************************
 
 OS Eercises - Homework 5 - HOST dispatcher - Exercise Resource Management and project final
 
@@ -120,7 +120,6 @@ int main (int argc, char *argv[])
     int timer = 0;                // dispatcher timer
     int quantum = QUANTUM;        // current time-slice quantum
     int i;                        // working index
-    RsrcPtr rPointer = rsrcAlloc(&resources, resources);
 //  0. Parse command line
 
     i = 0;
@@ -183,7 +182,7 @@ int main (int argc, char *argv[])
         
 //  5. While there's anything in any of the queues or there is a currently running process:
 
-     while(inputqueue || CheckQueues(dispatcherqueues) >= 0  || userjobqueue || currentprocess) {
+     while(inputqueue || userjobqueue || (CheckQueues(dispatcherqueues) >= 0)  ||  currentprocess) {
 
     
 
@@ -193,48 +192,74 @@ int main (int argc, char *argv[])
 
 	   while(inputqueue && inputqueue->arrivaltime <= timer) {
      		
-		
-
-
- // dequeue process
 		 process = deqPcb(&inputqueue);
                  process->status = PCB_READY;
- // set pcb ready
-
+	if(process->priority == RT_PRIORITY) {
 //           a. Real-time queue so check out parameters before enqueueing               
 
-		 if(checkQueues(dispatcherqueues[0])) {
-			dispatcherqueues[0] = enqPcb(dispatcherQueues[0], process);	
-		}                
+		 if(process->mbytes > RT_MEMORY_SIZE) {
+			fprintf(stderr, "\nERROR - Real Time job memory max %d Mbytes - job deleted\n", RT_MEMORY_SIZE);	
+			free(process);
+			continue;
+		}
+		if(process->req.printers || process->req.scanners || process->req.modems || process->req.cds) {
+			fprintf(stderr, "\nERROR - Real Time job not allow i/o resources - job deleted\n");
+			free(process);
+			continue;
+		}
+		if(rtmemory) { 
+			process->memoryblock = rtmemory;
+		} else {
+			if(!memChk(&memory, process->mbytes)) {
+				fprintf(stderr, "\nERROR - Not enough memory for Real Time Job - job deleted\n");
+				free(process);
+				continue;
+			}
+			process->memoryblock = memAlloc(&memory, process->mbytes);
+		}
+		dispatcherqueues[RT_PRIORITY] = enqPcb(dispatcherqueues[RT_PRIORITY], process);
+		} else if (process->priority > RT_PRIORITY && process->priority <= LOW_PRIORITY) {
+
 //            b. user job queue - check out parameters before enqueueing
-		else if(userjobqueue) {
-			userjobqueue = enq(userjobqueue, process);
+		if(!memChkMax(process->mbytes)) {
+			fprintf(stderr, "\nERROR - Job is demanding too much memory (%d Mbytes) - job deleted\n", process->mbytes);
+			free(process);
+			continue;
 		}	 
+		if(!rsrcChkMax(process->req)) {
+			fprintf(stderr, "\nERROR - Job is demanding too many resources - job deleted \n");
+			free(process);
+			continue;
+		}
+		userjobqueue = enqPcb(userjobqueue, process);
+		} else {
 //               c. unknown priority
-                else if(checkQueues(dispatchesqueues)) {
-			dispatcherqueues[process->priority] = enqPcb(dispatcherqueues[process->priority]);
+		fprintf(stderr, "ERROR - Unrecognizedpriority: %d!\n", process->priority);
+		free(process);
+		continue;		
 		}
             }//end inner while
 
 //     ii. Unload pending processes from the user job queue:
 //         While (head-of-user-job-queue.mbytes && resources can be allocated
 
- 	while() {
+ 	while(userjobqueue &&
+		memChk(&memory, userjobqueue->mbytes) &&
+		rsrcChk(&resources, userjobqueue->req)) {
 //           a. dequeue process from user job queue
 		process = deqPcb(&userjobqueue);
 //           b. allocate memory to the process
-		memAlloc(rtmemory, RT_MEMORY_SIZE);
+		process->memoryblock = memAlloc(&memory, process->mbytes);
 //           c. allocate i/o resources to process
-		//DO NOT KNOW HOW TO DO THIS
-            										
-            										     // set pcb ready
-	process->status = PCB_READY;
+            	rsrcAlloc(&resources, process->req);
+		process->status = PCB_READY;									
+            	//Finished
 //           d. enqueue on appropriate feedback queue
-            fbqueue[process->priority] = enqPcb(fbqueue[process->priority], process);
-            
+            dispatcherqueues[process->priority] = enqPcb(dispatcherqueues[process->priority], process);
+           } 
 
 //    iii. If a process is currently running;
-	if(currentprocess && currentprocess->status == PCB_RUNNING) {
+	if(currentprocess) {
         
 
 //          a. Decrement process remainingcputime;
@@ -246,19 +271,21 @@ int main (int argc, char *argv[])
                 
 //             A. Send SIGINT to the process to terminate it;
 
-                currentprocess = terminatePcb(currentprocess);
+                terminatePcb(currentprocess);
 
 //             B. Free memory and resources we have allocated to the process;
-
-                memFree(rtmemory);
+		if(currentprocess->priority != RT_PRIORITY || !rtmemory) {
+                memFree(currentprocess->memoryblock);
+		rsrcFree(&resources, currentprocess->req);
+		} //done
 //             C. Free up process structure memory
 		free(currentprocess);
 		currentprocess = NULL;	
                 
-                }
+                
 //         c. else if a user process and other processes are waiting in feedback queues:
 	
-            if(CheckQueues(dispatcherqueues) >= 0) {
+            } else if(currentprocess->priority > RT_PRIORITY && CheckQueues(dispatcherqueues) >= 0) {
                 
 //             A. Send SIGTSTP to suspend it;
 
@@ -266,8 +293,8 @@ int main (int argc, char *argv[])
 
 //             B. Reduce the priority of the process (if possible) and enqueue it on
 //                the appropriate feedback queue;;
-		if(++(currentprocess->priority) >= N_FB_QUEUES) {
-                         currentprocess->priority = N_FB_QUEUES - 1;
+		if(++(currentprocess->priority) >= LOW_PRIORITY) {
+                         currentprocess->priority = LOW_PRIORITY;
                  }
                  dispatcherqueues[currentprocess->priority] =
                             enqPcb(dispatcherqueues[currentprocess->priority], currentprocess);
@@ -292,7 +319,7 @@ int main (int argc, char *argv[])
 //         b. If already started but suspended, restart it (send SIGCONT to it)
 //              else start it (fork & exec)
 //         c. Set it as currently running process;
-            
+            startPcb(currentprocess);
            }
            
            
